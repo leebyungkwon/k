@@ -1,0 +1,4 @@
+INSERT INTO ssotest.site (sid,secret_key,site_nm,url) VALUES 
+('SVC010','Q2VJ93KLD1AAC175','고객서비스센터 FO WEB','https://admindev.service.skmagic.com/')
+,('SVC020','ECDM39K2JNM23U1A','고객서비스센터 BO WEB','https://dev.service.skmagic.com/')
+;
