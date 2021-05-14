@@ -1,0 +1,37 @@
+.loading-bar {
+    margin: 100px auto;
+    width: 60px;
+    height: 60px;
+    position: relative;
+    top: 40%;
+    left: 0px;
+    right: 0px;
+    margin: 0px auto;
+    position: fixed;
+    z-index: 99999999;
+}
+.viewLoading {
+    position: fixed;
+    top: 0px;
+    z-index: 999999;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    opacity: .5;
+}
+
+<div class="viewLoading" id="viewLoading" style="display: none;"></div>
+		<div class="loading-bar" id="loading-bar" style="display: none;">
+			<div class="loading-dot1 loading-dot"></div>
+			<div class="loading-dot2 loading-dot"></div>
+			<div class="loading-dot3 loading-dot"></div>
+			<div class="loading-dot4 loading-dot"></div>
+			<div class="loading-dot5 loading-dot"></div>
+			<div class="loading-dot6 loading-dot"></div>
+			<div class="loading-dot7 loading-dot"></div>
+			<div class="loading-dot8 loading-dot"></div>
+			<div class="loading-dot9 loading-dot"></div>
+			<div class="loading-dot10 loading-dot"></div>
+			<div class="loading-dot11 loading-dot"></div>
+			<div class="loading-dot12 loading-dot"></div>
+		</div>
