@@ -1,0 +1,871 @@
+var to = "";
+let GRID = {
+    id: this.id,
+    url: this.url,
+    init: true,
+    search: "",
+    orgData: "",
+    opts: "",
+    gridData: "",
+    rowClick: false,
+    sortNm: "",
+    sort: "DESC",
+    searchSeq: [],
+    searchWidth: [],
+    searchCol: [],
+    searchDefault: [],
+    isPaging: true,
+    pageCnt: 0,
+    page: 0,
+    size: 10,
+    params: {},
+    gridSearch: "",
+    validSearch:null,
+    searchBtn: "",
+    check: false,
+    excel: "",
+    bodyRefresh: false,
+    initTable: true,
+    pagingCnt: true,
+    getId: function() {
+        return this.id;
+    },
+    validation: function(obj) {
+        if (obj.id == undefined) {
+            alert("그리드 ID 입력하세요.");
+            return;
+        }
+        if (obj.url == undefined) {
+            alert("URL 입력하세요.");
+            return;
+        }
+    },
+    set: function(obj) {
+        let _this = this;
+        this.validation(obj);
+        this.id = obj.id;
+        this.url = obj.url;
+        this.rowClick = obj.rowClick;
+        this.search = (obj.search == undefined) ? "" : obj.search;
+        this.sort = (obj.sort == undefined) ? "DESC" : obj.sort;
+        this.sortNm = (obj.sortNm == undefined) ? "" : obj.sortNm;
+        this.isPaging = (obj.isPaging == undefined) ? true : obj.isPaging;
+        this.page = (obj.page == undefined) ? 0 : obj.page;
+        this.size = (obj.size == undefined) ? 10 : obj.size;
+        this.searchBtn = (obj.gridSearch == undefined) ? "" : obj.gridSearch.split(",")[1];
+        this.gridSearch = (obj.gridSearch == undefined) ? "" : obj.gridSearch.split(",")[0];
+        this.check = (obj.check == undefined) ? false : obj.check;
+        this.excel = (obj.excel == undefined) ? false : obj.excel;
+        this.initTable = (obj.initTable == undefined) ? true : obj.initTable;
+        this.pagingCnt = (obj.pagingCnt == undefined) ? true : obj.pagingCnt;
+        this.validSearch = (obj.validSearch == undefined) ? true : obj.validSearch;
+        this.params = {
+            'page': this.page
+            , 'isPaging': this.isPaging
+            , 'size': this.size
+            , 'sort': this.sortNm + ',' + this.sort
+        };
+
+        this.opts = obj;
+        if (this.initTable) this.getData();
+        else this.returnData("");
+
+
+        if (this.gridSearch != "") {
+            if (this.gridSearch != "" && this.searchBtn != "") {
+                document.getElementById(this.searchBtn).onclick = function() {
+                    if (typeof _this.validSearch === "function"){
+                      if(_this.validSearch())   _this.getData('init');
+                    }else{
+                      _this.getData('init');
+                    }
+                };
+            }
+        }
+        if (this.excel != "") {
+            let button = document.createElement("a");
+            button.append("엑셀다운로드");
+            button.className = "btn_excel btn_00 btn_medium bg_7da color_fff mr12";
+            document.getElementById("btnDiv").prepend(button);
+
+            let fileNm = (obj.excelName == undefined) ? 'excel' : obj.excelName;
+            button.onclick = function() {
+                let param = "";
+                if (this.gridSearch != "") {
+                    param = Object.assign({}, _this.params, WebUtil.getTagInParam(document.getElementById(_this.gridSearch)));
+                }
+                let p = {
+                    url: _this.excel
+                    , fileNm: fileNm
+                    , param: param
+                }
+                AjaxUtil.excel(p);
+            };
+        }
+
+    },
+    getData: function(type) {
+        let _this = this;
+
+        let param = "";
+        if (this.gridSearch != "") {
+            if (type != "undefined" && type == "init") {
+                this.params.page = 0;
+            }
+        }
+        param = Object.assign({}, this.params, WebUtil.getTagInParam(document.getElementById(this.gridSearch)));
+        let p = {
+            url: this.url
+            , param: param
+            , success: function(opt, result) {
+                _this.returnData(result.data);
+                let page_id = _this.id + "_paging";
+                if (typeof document.getElementById(page_id + "_area") != 'undefined' && document.getElementById(page_id + "_area") != null) {
+                    if (document.getElementById(page_id + "_area").querySelectorAll(".right").length == 0 && _this.opts.tableBtn != undefined) {
+                        _this.setTableBtn();
+                    }
+                }
+                if (typeof _this.opts.searchReturn === "function") {
+                    _this.opts.searchReturn();
+                }
+            }
+        }
+        AjaxUtil.post(p);
+    },
+    returnData: function(data) {
+        this.orgData = data;
+        this.gridData = data;
+        let page_id = this.id + "_paging";
+        if (null != document.getElementById(page_id)) {
+            document.getElementById(page_id).remove();
+        }
+        if (!this.bodyRefresh) this.setFrame();
+        this.setTable();
+        if (this.initTable || data.length > 0) {
+            if (data.length > 0 && this.isPaging) this.setPaging(data[0].totalCnt);
+        }
+
+
+        if (this.pagingCnt) {
+            let list_count_len = document.querySelector(".list_count");
+
+            let g = 0;
+            if (data != 'undefined' && data.length > 0) g = data[0].totalCnt;
+
+            if (list_count_len == null) {
+                let tot = document.createElement("span");
+                tot.append("총 " + g + "건");
+                tot.className = "list_count";
+                tot.id = this.id + "_cnt";
+                document.getElementById(this.id).before(tot);
+            } else {
+                if (document.getElementById(this.id + "_cnt") != null)
+                    document.getElementById(this.id + "_cnt").innerHTML = "총 " + g + "건";
+            }
+        }
+
+        this.init = false;
+        this.initTable = false;
+    },
+    setFrame: function() {
+        let _this = this;
+        let table = "";
+        if (this.search != "") {
+            if (this.search.searchUse == "Y") {
+                for (i in this.opts.bodyCol) {
+                    if (this.opts.bodyCol[i].search != undefined) {
+                        let typ = this.opts.bodyCol[i].search["type"];
+                        if (typ != undefined) {
+                            this.searchCol.push(this.opts.bodyCol[i]);
+                            this.searchSeq.push(i);
+                            this.searchDefault.push(this.opts.bodyCol[i]["search"]["default"]);
+                            this.searchWidth.push(this.opts.bodyCol[i]["search"]["width"]);
+                        }
+                    }
+                }
+                table += "<table class='searchTable' id='tbl_" + this.id + "_search' style='width:" + this.opts.width + "'>" + "<tbody></tbody></table>";
+            }
+        }
+
+        table += "<table class='gridTableHead' id='tbl_" + this.id + "_head' style='width:" + this.opts.width + "'>"
+            + "<thead></thead></table>";
+
+
+        table += "<table class='gridTableBody' id='tbl_" + this.id + "_body' style='width:" + this.opts.width + "'>"
+            + "<tbody></tbody></table>";
+        document.getElementById(this.id).innerHTML = table;
+    },
+    setTable: function() {
+        let hiddenCol = this.columnSetHiddenCol(this.opts.bodyCol);
+
+        if (!this.bodyRefresh) {
+            this.setHead("tbl_" + this.id + "_head", this.opts.headCol, hiddenCol, this.opts.bodyCol);
+            this.bodyRefresh = true;
+        }
+
+        this.setBody("tbl_" + this.id + "_body", this.opts.bodyCol, hiddenCol);
+
+        if (this.init && this.search != "") {
+            if (this.search.searchUse == "Y") {
+                document.getElementById(this.id + "_search").onclick = function() { _this.data(); };
+            }
+        }
+
+    },
+    setData: function() {
+        this.gridData = [];
+        let searchName = [];
+        let searchWay = [];
+        if (this.search != "") {
+            if (this.search.searchUse == "Y") {
+                for (i in this.searchCol) {
+                    searchName.push(this.searchCol[i]["name"]);
+                    searchWay.push(this.searchCol[i]["search"]["way"]);
+                }
+            }
+        }
+        let data = this.orgData;
+
+        let emp = true;
+        searchName.forEach(function(v, i) {
+            let val = document.getElementById("tbl_" + _this.id + "_search_" + v).value;
+            if (val != "전체") {
+                emp = false;
+                return;
+            }
+        });
+        if (emp) {
+            this.gridData = data;
+        } else {
+            this.gridData = data.filter(function(item) {
+                let d = true;
+                searchName.forEach(function(v, i) {
+                    if (!d) return;
+                    if (document.getElementById("tbl_" + _this.id + "_search_" + v).value != "전체") {
+                        let val = document.getElementById("tbl_" + _this.id + "_search_" + v).value;
+                        d = (item[v] === document.getElementById("tbl_" + _this.id + "_search_" + v).value);
+                    }
+                });
+                return d;
+            });
+        }
+
+    },
+    setPaging: function(totalCnt) {
+        let _this = this;
+        let page_id = this.id + "_paging";
+        let current = parseInt(_this.params.page) + 1;
+        this.pageCnt = Math.ceil(totalCnt / this.size);
+
+        let pagingBtnArea = document.createElement("div");
+        pagingBtnArea.className = "pagination_btn_area mt10";
+        pagingBtnArea.id = page_id + "_area";
+
+        let tag = document.createElement("div");
+        tag.className = "custom-pagination center";
+        tag.id = page_id;
+        let s_tag = "";
+        let start = (parseInt((current - 1) / this.size) * this.size) + 1;
+        let end = Math.floor((start + this.size) / 10) * 10;
+        end = (this.pageCnt > end) ? end : this.pageCnt;
+
+        if (this.pageCnt > 1) {
+            if (1 < current) {
+                s_tag += '<span  class="pagination-prev"><a href="javascript:void(0)" class=""></a></span>';
+            }
+            for (let i = start; i <= end; i++) {
+                s_tag += '<span class="num num' + i + '"><a href="javascript:void(0)" class="page_num">' + i + '</a></span>';
+            }
+            if (this.pageCnt > current) {
+                s_tag += '<span  class="pagination-next"><a href="javascript:void(0)" class=""></a></span>';
+            }
+        } else {
+            s_tag += '<span class="num num1"><a href="javascript:void(0)" class="page_num">1</a></span>';
+        }
+        tag.innerHTML = s_tag;
+
+        if (document.getElementById(page_id + "_area") != null) {
+            document.getElementById(page_id + "_area").remove();
+        }
+        pagingBtnArea.appendChild(tag);
+        document.getElementById(this.id).appendChild(pagingBtnArea);
+
+
+        let page = document.getElementById(page_id).querySelectorAll(".page_num");
+        let prev = document.getElementById(page_id).querySelector(".pagination-prev");
+        let next = document.getElementById(page_id).querySelector(".pagination-next");
+
+        if (null != prev) {
+            prev.addEventListener('click', function(event) {
+                for (let __page = 0; __page < page; __page++) {
+                    __page.parentElement.classList.remove("current");
+                }
+                _this.params.page = _this.params.page - 1;
+                _this.getData();
+            });
+        }
+        if (null != next) {
+            next.addEventListener('click', function(event) {
+                for (let __page = 0; __page < page; __page++) {
+                    __page.parentElement.classList.remove("current");
+                }
+                _this.params.page = _this.params.page + 1;
+                _this.getData();
+            });
+        }
+
+        let idx = 1;
+
+        for (let _page = 0; _page < page.length; _page++) {
+            page[_page].addEventListener('click', function(event) {
+                for (let __page = 0; __page < page.length; __page++) {
+                    page[__page].parentElement.classList.remove("current");
+                }
+                _this.params.page = this.text - 1;
+                _this.getData();
+            });
+        }
+        if (document.getElementById(page_id).querySelector(".num" + (parseInt(_this.params.page) + 1)) != null)
+            document.getElementById(page_id).querySelector(".num" + (parseInt(_this.params.page) + 1)).className = "num current num" + _this.params.page + 1;
+    },
+    setSearch: function(id, headCol, data) {
+        let tag = "<tr>";
+        let colspan = 0;
+        for (i in headCol) {
+            for (j in this.searchSeq) {
+                if (i == j) {
+                    colspan++;
+                    tag += "<td class='searchTableTop'>";
+                    tag += "<label>" + headCol[this.searchSeq[j]] + "</label><span>";
+
+                    let selecteName = (this.searchDefault[j] != undefined) ? this.searchDefault[j] : "";
+                    if (this.searchCol[j].search["type"] == "text") {
+                        tag += "<input type='text' name='" + id + "_" + this.searchCol[j].name + "' id='" + id + "_" + this.searchCol[j].name + "' style='margin-left:10px;width:80px;'/>";
+                    }
+                    else if (this.searchCol[j].search["type"] == "select") {
+                        tag += "<select name='" + id + "_" + this.searchCol[j].name + "' id='" + id + "_" + this.searchCol[j].name + "' style='margin-left:10px;width:" + this.searchWidth[j] + ";'>";
+                        let searchName = this.searchCol[j].name;
+                        let _name = [];
+                        let prev_name = "";
+                        tag += "<option>전체</option>";
+                        for (k in data) {
+                            if (prev_name != data[k][searchName]) {
+                                prev_name = data[k][searchName];
+                                let _name_flag = true;
+                                for (m in _name) {
+                                    if (_name[m] == prev_name) {
+                                        _name_flag = false;
+                                        continue;
+                                    }
+                                }
+                                if (_name_flag) _name.push(prev_name);
+                            }
+                        }
+                        for (k in _name) {
+                            let selected = (selecteName == _name[k]) ? "selected" : "";
+                            tag += "<option value='" + _name[k] + "' " + selected + ">" + _name[k] + "</option>";
+                        }
+                        tag += "</select>";
+                    }
+
+                    tag += "</span></td>";
+                }
+            }
+        }
+
+        tag += "</tr>";
+        tag += "<tr class='searchTableSearch'><td id='" + this.id + "_search' colspan='" + colspan + "'>검  색</td></tr>"
+
+        document.getElementById(id).getElementsByTagName("tbody")[0].innerHTML = tag;
+
+    },
+    setHead: function(id, headCol, hiddenCol, bodyCol) {
+        let _this = this;
+        let tag = "<tr>";
+        let hiddenStr = "display:none;";
+        let cursorStr = "";
+        if (this.opts.sortTable)    cursorStr = "cursor:pointer;";
+        if (this.check) tag += "<th style='text-align:center;width:1px;padding-right:0px;'><input type='checkbox' class='commonCheckBox' style='display:block'/></th>";
+        for (i in headCol) {
+            tag += "<th style='text-align:center; width:" + bodyCol[i].width + "; " + cursorStr;
+            for (j in hiddenCol) if (i == hiddenCol[j]) tag += hiddenStr;
+            tag += "'";
+            tag += " data-col=" + WebUtil.trim(WebUtil.camel2Snake(this.opts.bodyCol[i].name, "")) + "";
+            tag += " data-sort='DESC'";
+            tag += ">";
+            tag += headCol[i] + "</th>";
+        }
+        tag += "</tr>";
+        let thead = document.getElementById(id).getElementsByTagName("thead")[0];
+        thead.innerHTML = tag;
+        if (this.opts.sortTable) {
+            for (i in headCol) {
+                if (this.check && i == 0) continue;
+                thead.querySelectorAll("th")[i].onclick = function() {
+
+                    document.getElementById(id).querySelectorAll(".grid_head").forEach(function(item) {
+                        item.className = '';
+                    });
+                    if (WebUtil.isNull(this.dataset.sort)) {
+                        this.dataset.sort = 'ASC';
+                        this.className = 'grid_head grid_asc';
+                    } else if (!WebUtil.isNull(this.dataset.sort) && this.dataset.sort == 'ASC') {
+                        this.dataset.sort = 'DESC';
+                        this.className = 'grid_head grid_desc';
+                    }
+                    else if (!WebUtil.isNull(this.dataset.sort) && this.dataset.sort == 'DESC') {
+                        this.dataset.sort = 'ASC';
+                        this.className = 'grid_head grid_asc';
+                    }
+                    _this.bodyRefresh = true;
+                    _this.params.sort = this.dataset.col + "," + this.dataset.sort;
+                    _this.params.page = 0;
+                    _this.getData();
+                }
+
+            }
+        }
+
+        if (this.check) {
+            thead.getElementsByTagName("input")[0].onclick = function() {
+                let headCheck = this.checked;
+                if (this.type == 'checkbox') {
+                    let chkBody = document.getElementById("tbl_" + _this.id + "_body").getElementsByTagName("tbody")[0].getElementsByTagName("input");
+                    [].forEach.call(chkBody, function(el, idx) {
+                        if (headCheck) el.checked = true;
+                        else el.checked = false;
+                    });
+                }
+            };
+        }
+    },
+    setBody: function(id, bodyCol, hiddenCol) {
+        let _this = this;
+        //this.setData();
+
+        let tag = "";
+        let hiddenStr = "display:none;";
+
+        if (this.gridData == 0) {
+            if(WebUtil.isNotNull(this.opts.noDataMsg))tag += "<tr><td colspan='" + bodyCol.length + "' style='text-align:center;font-weight:bold;'>"+this.opts.noDataMsg+"</td></tr>";
+            else    tag += "<tr><td colspan='" + bodyCol.length + "' style='text-align:center;font-weight:bold;'>데이터가 없습니다.</td></tr>";
+
+            document.getElementById(id).getElementsByTagName("tbody")[0].innerHTML = tag;
+        } else {
+            for (i in this.gridData) {
+                tag += "<tr>";
+                if (this.check) tag += "<td class='noClick' style='text-align:center;width:1px;padding-right:0px;'><input type='checkbox' style='display:block'/></td>";
+                for (j in bodyCol) {
+                    let typ = bodyCol[j].type;
+                    let name = bodyCol[j].name;
+                    let dataStr = (this.gridData[i][name] == undefined) ? "" : this.gridData[i][name];
+
+                    if (typeof dataStr == 'string') dataStr = WebUtil.XSSCheck(dataStr,1);
+                    if (bodyCol[j].custom != undefined) dataStr = "";
+                    let classNm = "tbodyTd";
+                    if (bodyCol[j].button != undefined || bodyCol[j].custom != undefined) classNm = "noClick";
+                    if (typ == "text") classNm = "noClick";
+                    tag += "<td class='" + classNm + "' style='";
+
+                    for (k in hiddenCol) if (hiddenCol[k] == j) tag += hiddenStr;
+
+                    let align = (bodyCol[j].align == undefined) ? "center" : bodyCol[j].align;
+                    tag += "text-align:" + align + ";" + "width:" + bodyCol[j].width + ";'>";
+                    /*tag += (typ == "text") ? "<input type='text' name='" + name + "' value='" + dataStr + "'/>" : dataStr;*/
+                    tag += dataStr;
+                    if (bodyCol[j].button != undefined) {
+                        for (key in bodyCol[j].button) {
+                            tag += "<a href='javascript:void(0)' class='btn_04 border w80' onclick=" + bodyCol[j].button[key] + "(" + i + ");>" + key + "</a>";
+                        }
+                    } else if (bodyCol[j].custom != undefined) {
+                        tag += bodyCol[j].custom(this.gridData[i]);
+                    }
+                    tag += "</td>";
+
+                }
+                tag += "</tr>";
+            }
+            document.getElementById(id).getElementsByTagName("tbody")[0].innerHTML = tag;
+            if (_this.rowClick) {
+                let tbodyTr = document.getElementById(id).getElementsByTagName("tbody")[0].getElementsByTagName("tr");
+                //let tbodyTr = document.getElementById(id).getElementsByTagName("tbody")[0].querySelectorAll('td:not([class*="tbodyCheck"])');
+                [].forEach.call(tbodyTr, function(el, idx) {
+                    let _el = el.querySelectorAll('td:not([class*="noClick"])');
+                    el.style.cursor = "pointer";
+                    [].forEach.call(_el, function(subEl, index) {
+                        subEl.onclick = function() {
+                            _this.clickRemove();
+                            subEl.parentElement.style.background = _this.rowClick.color;
+                            subEl.parentElement.className = _this.id + "_selected";
+                            subEl.parentElement.dataset.row = idx;
+                            if (_this.rowClick.retFunc != undefined) _this.rowClick.retFunc(idx, _this.gridData[idx]);
+                        }
+                    });
+
+                });
+            }
+        }
+
+    },
+    setTableBtn: function() {
+        let _this = this;
+        if (this.opts.tableBtn != undefined) {
+            let pagination_btn_area = document.getElementById("btnDiv");
+            let i = 0;
+            for (key in this.opts.tableBtn.button) {
+                let right = document.createElement("a");
+                right.className = "btn_07 border mr12";
+                right.id = "tableBtn" + i++;
+                right.text = key;
+                pagination_btn_area.append(right);
+            }
+            i = 0;
+
+            let page_id = this.id + "_paging_area";
+
+            //document.getElementById("btnDiv").append(button);
+
+
+            for (key in this.opts.tableBtn.button) {
+                pagination_btn_area.querySelector("#tableBtn" + i++).onclick = function() {
+                    if (_this.opts.tableBtn.button[key].retFunc != undefined) {
+                        let body = _this.opts.bodyCol;
+                        let id = "";
+                        let r = new Array();
+                        for (j in body) {
+                            if (body[j].id) id = body[j].name;
+                        }
+                        for (j in body) {
+                            if (body[j].type == "text") {
+                                let dt = document.getElementsByName(body[j].name);
+                                for (let k = 0; k < dt.length; k++) {
+                                    let rd = {};
+                                    rd[id] = _this.gridData[k][id];
+                                    rd[body[j].name] = dt[k].value;
+                                    r.push(rd);
+                                }
+                            }
+                        }
+                        _this.opts.tableBtn.button[key].retFunc(r);
+                    }
+                }
+            }
+        }
+
+    },
+    columnSetHiddenCol: function(bodyCol) {
+        let hiddenCol = [];
+        for (i in bodyCol) {
+            let hidden = bodyCol[i].hidden;
+            if (hidden) hiddenCol.push(i);
+        }
+        return hiddenCol;
+    },
+    clearBody: function() {
+        document.getElementById("tbl_" + this.id + "_body").getElementsByTagName("tbody")[0].innerHTML = "";
+    },
+    refresh: function() {
+        this.getData();
+    },
+    clickRemove: function() {
+        let _tr = document.getElementById(this.id).getElementsByTagName("tbody")[0].getElementsByTagName("tr");
+        for (let i = 0; i < _tr.length; i++) {
+            _tr[i].className = "";
+            if (typeof _tr[i].style.background != undefined) _tr[i].style.background = "";
+        }
+    },
+    getChkData: function() {
+        let _this = this;
+        let chkBody = document.getElementById("tbl_" + this.id + "_body").getElementsByTagName("tbody")[0].getElementsByTagName("input");
+        let i = 0;
+        let data = {};
+        [].forEach.call(chkBody, function(el, idx) {
+            if (el.checked) data[i++] = _this.gridData[idx];
+        });
+        return data;
+    },
+    getRowData: function() {
+        let row = (document.getElementById("tbl_" + this.id + "_body").querySelector("." + this.id + "_selected") == null) ? "" : document.getElementById("tbl_" + this.id + "_body").querySelector("." + this.id + "_selected").dataset.row;
+        return (row == "") ? "" : this.gridData[row];
+    },
+    getGridInputData: function() {
+        let _this = this;
+        let body = _this.opts.bodyCol;
+        let id = "";
+        let r = new Array();
+        for (j in body) {
+            if (body[j].id) id = body[j].name;
+        }
+
+        let tag = $("#" + "tbl_" + this.id + "_body tr");
+
+        var resultData = new Array();
+        tag.each(function(idx) {
+            let _tag = this;
+            var result = {};
+            result[id] = _this.gridData[idx][id];
+            $(_tag).find('input[name] , select[name], textarea').filter(function(index, selector) {
+                var selectorTag = $(selector).prop('tagName');
+                var selectorName = $(selector).prop('name');
+
+                if (WebUtil.isNotNull(selectorName)) {
+                    var selectorType = $(selector).prop('type');
+
+                    var value = '';
+                    var checkData = new Array();
+                    if (selectorType == 'radio') result[selectorName] = $(_tag).find('input[name="' + selectorName + '"]:checked').val();
+                    if (selectorTag == 'SELECT') result[selectorName] = $(_tag).find('select[name="' + selectorName + '"]').val();
+                    if (selectorType == 'textarea') result[selectorName] = $(_tag).find('textarea[name="' + selectorName + '"]').val();
+                    if (selectorType == 'text') result[selectorName] = $(_tag).find('input[name=' + selectorName + ']').val();
+                    if (selectorType == 'hidden') result[selectorName] = $(_tag).find('input[name=' + selectorName + ']').val();
+                }
+            });
+            resultData.push(result);
+
+        });
+
+        return resultData;
+    }
+};
+
+
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<script type="text/javascript">
+
+var Grid = Object.create(GRID);
+
+function pageLoad(){
+	$( "#datepk" ).datepicker({ dateFormat: 'yy-mm-dd' });
+
+	$(".ui-datepicker-trigger").click(function(){
+        $(this).prev().trigger('focus');
+    });
+
+	var url = "/api/bo/templete/list";
+
+	Grid.set({
+		  id		: "grid"	//영역
+  		, url		: url
+	    , width		: "100%"
+	    , check		: true		//체크박스 생성
+  		, headCol	: ["번호", "커스텀", "타입", "제목", "등록시간", "등록시간", "버튼", "파일", "경로", "순서"]	//헤더
+  		, bodyCol	: //데이터 영역
+  			[
+				{type:"string"	, name:'boardNo'	, index:'boardNo'		, width:"50px"	, id:true}
+				,{type:"string"	, name:'boardTag'	, index:'boardTag'		, width:"10%"	, align:"center", custom:fnBoardType}
+				,{type:"string"	, name:'boardType'	, index:'boardType'		, width:"10%"	, align:"center"}
+				,{type:"string"	, name:'boardTitle'	, index:'boardTitle'	, width:"30%"	, align:"center"}
+				,{type:"string"	, name:'regDate'	, index:'regDate'		, width:"20%"	, sortTable:false}
+				,{type:"string"	, name:'regDate'	, index:'regDate'		, width:"30%"	, sortTable:false, hidden:true}
+				,{type:"string"	, name:'btn'		, index:'btn'			, width:"30%"	, sortTable:false
+						, button:{"수정": "modify","삭제": "del"}
+				}
+				,{type:"string"	, name:'fileNm'		, index:'fileNm'		, width:"30%"	, sortTable:false, hidden:true}
+				,{type:"string"	, name:'orgFile'	, index:'orgFile'		, width:"30%"	, sortTable:false, hidden:true}
+				,{type:"text"	, name:'ordSeq'		, index:'ordSeq'		, width:"50px"	, sortTable:false, custom:fnOrdSeq}
+			]
+		, sortTable:true
+		, sortNm : "board_no"				//정렬 필드
+		, sort : "DESC"						//정렬 방법
+		, rowClick	: { color:"#ccc",  retFunc : detailPop}		//클릭시 리턴
+		, validSearch : validationSearch
+		, gridSearch : "searchDiv,searchBtnId"				//검색영역 (검색영역,검색버튼)
+		, isPaging : true					//페이징여부
+		, excel : "/api/bo/templete/excelDown"
+	    , excelName : "템플릿"
+		, initTable : true
+		, size : 10
+		, noDataMsg : "템플릿 데이터가 존재 하지 않아요..."  //데이터가 없을 경우 출력 메세지
+		/*
+		, tableBtn :{
+			button:{
+				"순서저장": {retFunc : seqSave	}
+			}
+		}
+		 */
+	});
+
+	document.getElementById('btn_save').onclick = function () {
+		let p = Grid.getGridInputData();
+		console.log(p);
+		/*
+		let p = {
+			id : "testReg"
+			, url : "/view/bo/templete/p/templeteSave"
+		}
+		LibUtil.openPopup(p);
+		 */
+	};
+
+	document.getElementById('btn_pop2').onclick = function () {
+		let p = {
+			id : 'testReg'
+			, page : "/bo/templete/p/popTempleteFileSave"
+		}
+		LibUtil.openPopup(p);
+	};
+
+
+	var codeDtlNmCode = {
+		 useCode 	: true
+		,code 		: 'ADM_AUTH'	//CD_GRP
+		,target 	: '#commonCode' //선택 SELECTBOX ID
+		,updData    : 'SA'			//기본선택
+	};
+	DataUtil.selectBox(codeDtlNmCode);
+
+	var customData = {
+		useCode 	: false
+		,target 	: '#custom'				 //선택 SELECTBOX ID
+		,url 		: '/api/bo/forum/list'	 //데이터 호출 URL
+		,key 		: 'id'					 //SELECTBOX OPTION VALUE
+		,value		: 'forumNm'				 //SELECTBOX OPTION TEXT
+		,updData    : ''					 //기본선택
+		,defaultMsg : '포럼전체'				 //기본선택 없을 경우 TEXT
+	};
+	DataUtil.selectBox(customData);
+
+	/*
+	document.getElementById('btn_list').onclick = function () {
+		let p = {
+			id : 'testReg'
+			, page : "/bo/templete/p/popTempleteListSave"
+		}
+		LibUtil.openPopup(p);
+	};
+
+	document.getElementById('btn_page').onclick = function () {
+		location.href = "/view/bo/board/noticeReg";
+	};
+	*/
+
+}
+
+var a=1;
+function validationSearch(){
+	if(a==1){
+		alert('검색 못함');
+		return false;
+	}
+	return true;
+}
+function modify(idx){
+	alert("수정 "+Grid.gridData[idx].boardNo);
+}
+function del(idx){
+	alert("삭제 "+Grid.gridData[idx].boardNo);
+}
+function detail(idx, data){
+	location.href = "/view/bo/templete/templeteSave?boardNo="+data.boardNo;
+}
+function detailPop(idx, data){
+	let p = {
+		id : "testReg"
+		, data : data
+		, url : "/view/bo/templete/p/templeteSave"
+	}
+	LibUtil.openPopup(p);
+}
+
+function seqSave(data){
+	alert(11);
+	console.log(data);
+}
+
+function fnBoardType(data){
+	var html = "";
+
+	if(data.boardTitle == 'test1'){
+		html = '<div class="dp_ib"><a href="" class="ico_pin m_auto mr8 on"></a></div>'
+			+ '<select class="guide dp_ib w75" name="seq"><option>순서</option><option>1</option><option>2</option><option>3</option></select>';
+	}else{
+		html = '빈값';
+	}
+
+	return html;
+}
+
+
+function fnOrdSeq(data){
+	var html = '<input type="text" name="ordSeq" value="">';
+	return html;
+}
+</script>
+<div class="k_content shadow">
+	<!--HEADLINE-->
+	<h2 class="headline_01 mb10">템플릿 목록</h2>
+	<!--//HEADLINE-->
+	<!--CONTENTS_AREA-->
+	<div class="contents_area shadowbox">
+		<!--TABLE-->
+		<ul class="table_col_00" id="searchDiv">
+			<li class="table_item">
+				<div class="title">제목</div>
+				<div class="contents">
+					<div class="box_01">
+						<input type="text" name="boardTitle"/>
+					</div>
+				</div>
+				<div class="title">타입</div>
+				<div class="contents">
+					<div class="box_01">
+						<input name="boardType" id="boardType"/>
+					</div>
+				</div>
+			</li>
+			<li class="table_item">
+				<div class="title">select common</div>
+				<div class="contents">
+					<div class="box_01">
+						<select name="commonCode" id="commonCode"></select>
+					</div>
+				</div>
+				<div class="title">select custom</div>
+				<div class="contents">
+					<div class="box_01">
+						<select name="custom" id="custom"></select>
+					</div>
+				</div>
+			</li>
+			<li class="table_item">
+				<div class="title">내용</div>
+				<div class="contents">
+					<div class="box_01">
+						<input type="text" name="boardCnts"/>
+					</div>
+				</div>
+			</li>
+			<li class="table_item">
+				<div class="title">진행일시<span class="require">*</span></div>
+				<div class="contents">
+					<div>
+						<div class="dp_ib w190 mr20 relative">
+							<input type="text" id="datepk" class="datepk" placeholder="YYYY.MM.DD">
+							<button type="button" class="ui-datepicker-trigger">...</button>
+						</div>
+						<div class="dp_ib w190 mr20 relative">
+							<input type="text" id="datepk" class="datepk" placeholder="YYYY.MM.DD">
+							<button type="button" class="ui-datepicker-trigger">...</button>
+						</div>
+					</div>
+				</div>
+			</li>
+
+		</ul>
+		<!--//TABLE-->
+		<div class="fz0 txt_r mt10">
+			<a class="btn_06 bg_383 color_fff mr12" id="searchBtnId">조회</a>
+		</div>
+		<div class="fz0 txt_r mt10" id="btnDiv">
+			<a class="btn_08 border mr12" id="btn_pop2">추가</a>
+			<a class="btn_08 border mr12" id="btn_save">저장</a>
+		</div>
+		<!--TABLE_ROW_00-->
+		<div class="table_row_01 mt10" id="grid">
+		</div>
+		<!--//TABLE_ROW_00-->
+	</div>
+	<!--//CONTENTS_AREA-->
+</div>
