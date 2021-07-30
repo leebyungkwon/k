@@ -1,0 +1,7 @@
+@Data
+@Scope(value="request", proxyMode=ScopedProxyMode.TARGET_CLASS)
+@Component
+public class LoginSessionWrapperDomain implements Serializable{
+    private static final long serialVersionUID = 2868210232594931053L;
+    private LoginSessionDomain session;
+}
